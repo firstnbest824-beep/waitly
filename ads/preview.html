@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waitly Ad Preview</title>
+  <style>
+    :root {
+      --ink: #171615;
+      --muted: #67615a;
+      --paper: #fffaf0;
+      --line: #d9cebf;
+      --green: #1f8a5b;
+      --yellow: #f0bf35;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: #f4f0e8;
+      color: var(--ink);
+      font-family: Inter, Pretendard, "Noto Sans KR", Arial, sans-serif;
+      letter-spacing: 0;
+      overflow: hidden;
+    }
+
+    main {
+      width: min(320px, 100vw);
+      min-height: min(430px, 100vh);
+      border: 0;
+      border-radius: 0;
+      background: var(--paper);
+      overflow: hidden;
+      animation: rise-in 420ms cubic-bezier(0.18, 0.86, 0.28, 1) both;
+    }
+
+    @keyframes rise-in {
+      from {
+        transform: translateY(26px);
+        opacity: 0.92;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 10px;
+      border-bottom: 2px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mark {
+      width: 25px;
+      height: 25px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--paper);
+      border-radius: 5px;
+      background: var(--yellow);
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 950;
+    }
+
+    .brand-name {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.05;
+    }
+
+    .brand-name span {
+      color: #d8cec0;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .ad-kind {
+      margin-left: auto;
+      padding: 4px 7px;
+      border: 1px solid rgba(255, 250, 240, 0.7);
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .body {
+      padding: 14px;
+    }
+
+    .label {
+      display: inline-flex;
+      margin-bottom: 10px;
+      padding: 4px 7px;
+      border: 1.5px solid var(--green);
+      border-radius: 999px;
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 2 / 1;
+      object-fit: cover;
+      margin: 0 0 13px;
+      border: 2px solid var(--ink);
+      border-radius: 7px;
+      background: #ffffff;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.48;
+      font-weight: 650;
+      word-break: keep-all;
+    }
+
+    .funding {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1.5px solid var(--line);
+      border-radius: 7px;
+      background: #ffffff;
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
+    .funding strong {
+      color: var(--green);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="bar">
+      <div class="brand" aria-label="Waitly">
+        <span class="mark">W</span>
+        <span class="brand-name">
+          <strong>Waitly</strong>
+          <span>AI wait sponsor ad</span>
+        </span>
+      </div>
+      <span class="ad-kind">후원 광고</span>
+    </div>
+    <div class="body">
+      <span class="label">Sponsored</span>
+      <img src="./sample-ad.svg" alt="Waitly sponsored developer ad">
+      <h1>Neon Postgres Credits</h1>
+      <p>AI 앱을 만드는 개발자를 위한 서버리스 Postgres 크레딧을 받아보세요.</p>
+      <div class="funding">
+        이 광고 수익 일부가 <strong>vitejs/vite</strong>에 후원됩니다.
+      </div>
+      <p>AI 작업이 끝나면 이 광고창은 자동으로 닫힙니다.</p>
+    </div>
+  </main>
+</body>
+</html>

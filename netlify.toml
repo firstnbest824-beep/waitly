@@ -1,0 +1,80 @@
+[build]
+  publish = "public"
+  command = "node scripts/write-supabase-config.js"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[redirects]]
+  from = "/home"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/home/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/leaderboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/leaderboard/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/rooms"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/rooms/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/targets"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/targets/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/settings"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/settings/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/login/*"
+  to = "/index.html"
+  status = 200

@@ -1,0 +1,21 @@
+.env
+.waitly
+node_modules/
+public/supabase-config.js
+
+# Local Netlify folder
+.netlify
+
+# Codex/ECC local tooling and generated backups
+.agents/
+.backup-ecc-*/
+.playwright-mcp/
+.tmp-everything-claude-code/
+
+# Local research/reference dumps not needed for the public source package
+references/
+copywriting/
+로고/
+
+# Local screenshots and one-off QA captures
+/*.png

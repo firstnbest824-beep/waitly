@@ -1,0 +1,32 @@
+[
+  {
+    "id": "neon-postgres-credits",
+    "headline": "Neon Postgres Credits",
+    "body": "AI 앱을 만드는 개발자를 위한 서버리스 Postgres 크레딧을 받아보세요.",
+    "sponsor": "Neon",
+    "cta": "보기",
+    "url": "https://neon.tech/",
+    "imagePath": "ads/sample-ad.svg",
+    "imageAlt": "Waitly sponsored developer ad"
+  },
+  {
+    "id": "sentry-ai-debugging",
+    "headline": "Sentry로 AI 코드 오류 추적",
+    "body": "새로 생성된 코드의 런타임 오류를 빠르게 찾고 배포 리스크를 줄입니다.",
+    "sponsor": "Sentry",
+    "cta": "보기",
+    "url": "https://sentry.io/",
+    "imagePath": "ads/sample-ad.svg",
+    "imageAlt": "Waitly sponsored developer ad"
+  },
+  {
+    "id": "railway-deploy",
+    "headline": "Railway에 바로 배포",
+    "body": "AI가 만든 프로토타입을 몇 분 안에 서비스 환경으로 올려보세요.",
+    "sponsor": "Railway",
+    "cta": "보기",
+    "url": "https://railway.app/",
+    "imagePath": "ads/sample-ad.svg",
+    "imageAlt": "Waitly sponsored developer ad"
+  }
+]

@@ -1,0 +1,1440 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waitly Console</title>
+  <meta name="description" content="Waitly account, donation, sponsor target, and room console prototype.">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8f5;
+      --paper: #ffffff;
+      --surface-2: #eff3ed;
+      --ink: #111416;
+      --muted: #6b7378;
+      --line: #dde4df;
+      --green: #1f8f5f;
+      --blue: #2867e8;
+      --red: #e66a4e;
+      --yellow: #e7b54a;
+      --white: #ffffff;
+      --shadow: 0 18px 50px rgba(18, 28, 24, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(31, 143, 95, 0.12), transparent 32rem),
+        linear-gradient(180deg, #fbfcf9 0%, var(--bg) 42%);
+      color: var(--ink);
+      font-family: Inter, Pretendard, "Noto Sans KR", Arial, sans-serif;
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .shell {
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      min-height: 70px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 22px;
+      padding-left: max(20px, calc((100% - 1240px) / 2));
+      padding-right: max(20px, calc((100% - 1240px) / 2));
+      border-bottom: 1px solid rgba(221, 228, 223, 0.78);
+      background: rgba(247, 248, 245, 0.88);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 74px;
+      padding: 0;
+      font-weight: 900;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: var(--ink);
+      color: var(--paper);
+      font-weight: 950;
+    }
+
+    .mark img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .brand-text {
+      display: grid;
+      gap: 1px;
+      line-height: 1;
+    }
+
+    .brand-text strong {
+      font-size: 19px;
+    }
+
+    .brand-text span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .nav {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      padding: 0;
+      min-width: 0;
+    }
+
+    .nav button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: auto;
+      min-height: 42px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .nav button[aria-current="true"] {
+      background: var(--surface-2);
+      color: var(--ink);
+      box-shadow: none;
+    }
+
+    .nav svg,
+    .icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .side-status {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      text-align: right;
+    }
+
+    .side-status strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .side-status span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      font-weight: 750;
+      max-width: 245px;
+    }
+
+    .main {
+      min-width: 0;
+    }
+
+    .topbar {
+      position: static;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: min(1220px, calc(100% - 40px));
+      min-height: 92px;
+      margin: 0 auto;
+      padding: 28px 0 14px;
+      border-bottom: 0;
+      background: transparent;
+    }
+
+    .page-title {
+      min-width: 0;
+    }
+
+    .page-title h1 {
+      margin: 0;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .page-title p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .pill.good {
+      background: #dff4e7;
+      color: #14553a;
+      border-color: rgba(31, 143, 95, 0.32);
+    }
+
+    .pill.warn {
+      background: #fff2c6;
+      color: #664c00;
+      border-color: rgba(231, 181, 74, 0.45);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      background: var(--ink);
+      color: #ffffff;
+      box-shadow: none;
+    }
+
+    .btn.blue {
+      background: var(--blue);
+      color: #ffffff;
+    }
+
+    .btn:focus-visible,
+    .nav button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid rgba(36, 107, 254, 0.32);
+      outline-offset: 2px;
+    }
+
+    .content {
+      width: min(1220px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 10px 0 56px;
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .two-col {
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+      margin-top: 16px;
+    }
+
+    .panel,
+    .metric,
+    .row-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      min-height: 132px;
+      padding: 17px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 12px;
+      font-size: 31px;
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .metric em {
+      display: block;
+      margin-top: 10px;
+      color: var(--green);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 900;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 56px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 950;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .chart {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+      align-items: end;
+      min-height: 210px;
+      padding: 10px 4px 0;
+    }
+
+    .bar {
+      display: grid;
+      align-items: end;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .bar i {
+      display: block;
+      min-height: 18px;
+      border: 0;
+      border-radius: 6px 6px 0 0;
+      background: var(--green);
+    }
+
+    .bar:nth-child(2n) i {
+      background: var(--yellow);
+    }
+
+    .bar:nth-child(3n) i {
+      background: var(--blue);
+    }
+
+    .bar span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      text-align: center;
+    }
+
+    .activity {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      box-shadow: none;
+      background: var(--white);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      background: #fff2c6;
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .row-title {
+      min-width: 0;
+    }
+
+    .row-title strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 950;
+      overflow-wrap: anywhere;
+    }
+
+    .row-title span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 750;
+    }
+
+    .amount {
+      font-size: 14px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .target-list,
+    .room-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .target-option,
+    .room-option {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+    }
+
+    .target-option.active,
+    .room-option.active {
+      background: #fff2c6;
+      border-color: rgba(231, 181, 74, 0.55);
+      box-shadow: inset 0 0 0 1px rgba(231, 181, 74, 0.55);
+    }
+
+    .option-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .option-line strong {
+      font-size: 15px;
+      font-weight: 950;
+    }
+
+    .option-line span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .progress {
+      height: 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      overflow: hidden;
+    }
+
+    .progress i {
+      display: block;
+      height: 100%;
+      background: var(--green);
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-height: 42px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .settings-row:last-child {
+      border-bottom: 0;
+    }
+
+    .toggle {
+      position: relative;
+      width: 58px;
+      height: 32px;
+      flex: 0 0 58px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--white);
+    }
+
+    .toggle::after {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 20px;
+      height: 20px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--red);
+      transition: transform 160ms ease, background 160ms ease;
+    }
+
+    .toggle[aria-pressed="true"]::after {
+      transform: translateX(26px);
+      background: var(--green);
+    }
+
+    .terminal {
+      min-height: 260px;
+      border: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #171615;
+      color: #fffaf0;
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 12px;
+      border-bottom: 1px solid rgba(255, 250, 240, 0.12);
+      background: #2a2826;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border: 0;
+      border-radius: 50%;
+    }
+
+    .dot.red {
+      background: var(--red);
+    }
+
+    .dot.yellow {
+      background: var(--yellow);
+    }
+
+    .dot.green {
+      background: var(--green);
+    }
+
+    .terminal pre {
+      margin: 0;
+      padding: 16px;
+      white-space: pre-wrap;
+      color: #e9e0d2;
+      font: 800 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .ad-preview {
+      position: relative;
+      max-width: 320px;
+      margin-left: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .ad-preview-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 10px;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .ad-preview-body {
+      padding: 12px;
+    }
+
+    .ad-preview img {
+      display: block;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .ad-preview h3 {
+      margin: 12px 0 0;
+      font-size: 19px;
+      line-height: 1.1;
+      font-weight: 950;
+    }
+
+    .ad-preview p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .login-box {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid rgba(31, 143, 95, 0.22);
+      border-radius: 8px;
+      background: #e7f5ec;
+      box-shadow: var(--shadow);
+    }
+
+    .login-box strong {
+      display: block;
+      font-size: 18px;
+      font-weight: 950;
+    }
+
+    .login-box span {
+      display: block;
+      margin-top: 5px;
+      color: #4d3d05;
+      font-size: 13px;
+      line-height: 1.4;
+      font-weight: 800;
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+      }
+
+      .sidebar {
+        position: sticky;
+        height: auto;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .nav {
+        justify-content: flex-start;
+        overflow-x: auto;
+      }
+
+      .nav button {
+        justify-content: center;
+      }
+
+      .nav button span {
+        display: none;
+      }
+
+      .side-status {
+        display: none;
+      }
+
+      .metrics,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .ad-preview {
+        margin-left: 0;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+        width: calc(100vw - 24px);
+        min-height: 0;
+        padding: 22px 0 12px;
+      }
+
+      .page-title {
+        width: 100%;
+      }
+
+      .page-title h1,
+      .page-title p,
+      .login-box span {
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: break-word;
+      }
+
+      .page-title p {
+        font-size: 12px;
+        line-height: 1.35;
+        max-width: 30ch;
+      }
+
+      .top-actions,
+      .login-box {
+        width: 100%;
+      }
+
+      .top-actions {
+        flex-wrap: wrap;
+      }
+
+      .content {
+        width: calc(100vw - 24px);
+        padding-top: 16px;
+      }
+
+      .nav {
+        width: 100%;
+      }
+
+      .metric strong {
+        font-size: 28px;
+      }
+
+      .login-box {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .login-box span {
+        font-size: 12px;
+        max-width: 32ch;
+      }
+
+      .login-box .btn {
+        width: 100%;
+        white-space: normal;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/index.html" aria-label="Waitly home">
+        <span class="mark"><img src="/%EB%A1%9C%EA%B3%A0/ChatGPT%20Image%20Apr%2025,%202026,%2012_26_49%20AM.png" alt=""></span>
+        <span class="brand-text">
+          <strong>Waitly</strong>
+          <span>Console</span>
+        </span>
+      </a>
+
+      <nav class="nav" aria-label="Console sections">
+        <button type="button" data-section-target="overview" aria-current="true">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4z"></path><path d="M14 20h6V4h-6z"></path><path d="M4 20h6v-3H4z"></path></svg>
+          <span>Overview</span>
+        </button>
+        <button type="button" data-section-target="targets">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-4.4 7-11a7 7 0 0 0-14 0c0 6.6 7 11 7 11z"></path><circle cx="12" cy="10" r="2"></circle></svg>
+          <span>Targets</span>
+        </button>
+        <button type="button" data-section-target="rooms">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-8 0v2"></path><circle cx="12" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9"></path><path d="M2 21v-2a4 4 0 0 1 3-3.9"></path></svg>
+          <span>Rooms</span>
+        </button>
+        <button type="button" data-section-target="settings">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.4-.2-.1a1.8 1.8 0 0 0-2.1.4l-.2.2h-4l-.2-.2a1.8 1.8 0 0 0-2.1-.4l-.2.1-2-3.4.1-.1a1.8 1.8 0 0 0 .4-2l-.1-.3-2.7-1.6v-3.2l2.7-1.6.1-.3a1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.4.2.1a1.8 1.8 0 0 0 2.1-.4l.2-.2h4l.2.2a1.8 1.8 0 0 0 2.1.4l.2-.1 2 3.4-.1.1a1.8 1.8 0 0 0-.4 2l.1.3 2.7 1.6v3.2l-2.7 1.6z"></path></svg>
+          <span>Settings</span>
+        </button>
+        <button type="button" data-section-target="activity">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m7 14 4-4 4 4 5-7"></path></svg>
+          <span>Activity</span>
+        </button>
+      </nav>
+
+      <div class="side-status">
+        <strong data-install-state>Local install linked</strong>
+        <span>CLI state mirrors local config. No prompt or code content is collected.</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-title">
+          <h1 data-view-title>Contribution overview</h1>
+          <p data-view-subtitle>AI wait time funding dashboard for the current local prototype.</p>
+        </div>
+        <div class="top-actions">
+          <span class="pill good" data-ad-state>Ads enabled</span>
+          <button class="btn" type="button" data-login-toggle>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span data-login-label>Sign in</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="section active" data-section="overview">
+          <div class="login-box">
+            <div>
+              <strong data-login-headline>Anonymous local mode</strong>
+              <span data-login-copy>Waitly works without login. Sign in when account sync and cross-device totals are ready.</span>
+            </div>
+            <button class="btn primary" type="button" data-login-toggle-secondary>Use signed-in preview</button>
+          </div>
+
+          <div class="grid metrics" style="margin-top: 16px;">
+            <div class="metric">
+              <span>Personal estimated</span>
+              <strong data-personal-total>$18.42</strong>
+              <em>+ $3.18 this week</em>
+            </div>
+            <div class="metric">
+              <span>Community total</span>
+              <strong data-community-total>$12,840</strong>
+              <em>confirmed pilot pool</em>
+            </div>
+            <div class="metric">
+              <span>Wait time funded</span>
+              <strong>7h 42m</strong>
+              <em>eligible AI wait segments</em>
+            </div>
+            <div class="metric">
+              <span>Active route</span>
+              <strong data-active-target-short>vite</strong>
+              <em data-active-room-label>direct target</em>
+            </div>
+          </div>
+
+          <div class="grid two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Contribution trend</h2>
+                <span class="pill">estimated</span>
+              </div>
+              <div class="panel-body">
+                <div class="chart" aria-label="Contribution trend chart">
+                  <div class="bar"><i style="height: 44px"></i><span>Mon</span></div>
+                  <div class="bar"><i style="height: 72px"></i><span>Tue</span></div>
+                  <div class="bar"><i style="height: 116px"></i><span>Wed</span></div>
+                  <div class="bar"><i style="height: 86px"></i><span>Thu</span></div>
+                  <div class="bar"><i style="height: 148px"></i><span>Fri</span></div>
+                  <div class="bar"><i style="height: 64px"></i><span>Sat</span></div>
+                  <div class="bar"><i style="height: 98px"></i><span>Sun</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Live ad behavior</h2>
+                <span class="pill good">verified</span>
+              </div>
+              <div class="panel-body">
+                <div class="ad-preview" aria-label="Waitly sponsored popup preview">
+                  <div class="ad-preview-head">
+                    <span class="mark" style="width: 25px; height: 25px; background: #ffffff;"><img src="/%EB%A1%9C%EA%B3%A0/ChatGPT%20Image%20Apr%2025,%202026,%2012_26_49%20AM.png" alt=""></span>
+                    <strong>Waitly</strong>
+                    <span style="margin-left: auto;">후원 광고</span>
+                  </div>
+                  <div class="ad-preview-body">
+                    <img src="/ads/sample-ad.svg" alt="Sponsored ad creative preview">
+                    <h3>AI가 생각하는 동안 후원이 흐릅니다</h3>
+                    <p>추론이 끝나면 이 창은 자동으로 내려갑니다. 팝업 내부 닫기 버튼은 없습니다.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-section="targets">
+          <div class="grid two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Funding target</h2>
+                <span class="pill" data-target-count>3 approved</span>
+              </div>
+              <div class="panel-body">
+                <div class="target-list" data-target-list></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Route settings</h2>
+                <span class="pill warn">local config</span>
+              </div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="target-input">Custom target</label>
+                    <input id="target-input" data-target-input value="vitejs/vite">
+                  </div>
+                  <button class="btn primary" type="button" data-save-target>Save target</button>
+                  <div class="terminal">
+                    <div class="terminal-bar">
+                      <span class="dot red"></span>
+                      <span class="dot yellow"></span>
+                      <span class="dot green"></span>
+                    </div>
+                    <pre data-config-preview></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-section="rooms">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Donation rooms</h2>
+              <button class="btn blue" type="button" data-create-room>Create room</button>
+            </div>
+            <div class="panel-body">
+              <div class="room-list" data-room-list></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-section="settings">
+          <div class="grid two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>External ad controls</h2>
+                <span class="pill">outside popup</span>
+              </div>
+              <div class="panel-body">
+                <div class="settings-row">
+                  <div class="row-title">
+                    <strong>Sponsored windows</strong>
+                    <span>Disabling keeps wrapped CLI execution normal and prevents new impressions.</span>
+                  </div>
+                  <button class="toggle" type="button" data-toggle-ads aria-pressed="true" aria-label="Toggle ads"></button>
+                </div>
+                <div class="settings-row">
+                  <div class="row-title">
+                    <strong>Pause until tomorrow</strong>
+                    <span>Stores a local pause timestamp for the next Waitly run.</span>
+                  </div>
+                  <button class="btn" type="button" data-pause-tomorrow>Pause</button>
+                </div>
+                <div class="settings-row">
+                  <div class="row-title">
+                    <strong>Account sync</strong>
+                    <span>Prototype-only toggle. Sensitive developer content is never synced.</span>
+                  </div>
+                  <button class="toggle" type="button" data-toggle-sync aria-pressed="false" aria-label="Toggle account sync"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>CLI commands</h2>
+                <span class="pill">ready</span>
+              </div>
+              <div class="panel-body">
+                <div class="terminal">
+                  <div class="terminal-bar">
+                    <span class="dot red"></span>
+                    <span class="dot yellow"></span>
+                    <span class="dot green"></span>
+                  </div>
+                  <pre>waitly status
+waitly pause 1h
+waitly disable
+waitly enable
+waitly run claude -p "..."</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" data-section="activity">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Recent content-free events</h2>
+              <span class="pill good">privacy safe</span>
+            </div>
+            <div class="panel-body">
+              <div class="activity" data-activity-list></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const state = loadState();
+    let apiDashboard = null;
+    let publicTotal = null;
+
+    const targets = [
+      { id: "vitejs/vite", label: "Vite", type: "Open source", amount: "$4,320", progress: 82 },
+      { id: "pytorch/pytorch", label: "PyTorch", type: "Research tooling", amount: "$3,180", progress: 61 },
+      { id: "oss-security-fund", label: "OSS Security Fund", type: "Community pool", amount: "$5,340", progress: 74 }
+    ];
+
+    const rooms = [
+      { id: "frontend-builders", label: "Frontend Builders", members: 128, target: "vitejs/vite", amount: "$1,840", progress: 68 },
+      { id: "ai-research-night", label: "AI Research Night", members: 42, target: "pytorch/pytorch", amount: "$920", progress: 39 },
+      { id: "security-sprint", label: "Security Sprint", members: 77, target: "oss-security-fund", amount: "$1,260", progress: 53 }
+    ];
+
+    const activities = [
+      ["wait_detected", "Claude inference idle window", "+18s"],
+      ["ad_opened", "Bottom-right sponsored popup", "verified"],
+      ["ad_auto_close", "Wrapped process finished", "clean"],
+      ["target_saved", "Funding route set locally", state.target],
+      ["privacy_guard", "No prompt or code collected", "active"]
+    ];
+
+    const titles = {
+      overview: ["Contribution overview", "AI wait time funding dashboard for the current local prototype."],
+      targets: ["Funding target", "Choose where eligible Waitly contribution credit should route."],
+      rooms: ["Donation rooms", "Coordinate a shared funding route with a team or community."],
+      settings: ["Settings", "Pause, disable, sync, and inspect local Waitly controls outside the ad window."],
+      activity: ["Activity", "Content-free operational events only. No prompts, code, or terminal output."]
+    };
+
+    document.querySelectorAll("[data-section-target]").forEach((button) => {
+      button.addEventListener("click", () => setSection(button.dataset.sectionTarget));
+    });
+
+    document.querySelectorAll("[data-login-toggle], [data-login-toggle-secondary]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (state.signedIn) {
+          await callApi("/v1/auth/logout", { method: "POST" });
+          state.signedIn = false;
+          state.accountSettingsVersion = undefined;
+          apiDashboard = null;
+        } else {
+          const signup = await callApi("/v1/auth/signup", {
+            method: "POST",
+            body: {
+              email: "pilot@waitly.local",
+              displayName: "Pilot User"
+            }
+          });
+          state.signedIn = signup.ok;
+          await refreshAccountState();
+        }
+        saveState();
+        render();
+      });
+    });
+
+    document.querySelector("[data-toggle-ads]").addEventListener("click", async () => {
+      state.adsEnabled = !state.adsEnabled;
+      if (state.adsEnabled) {
+        state.pauseUntil = "";
+      }
+      await syncAccountSettings({
+        disabled: !state.adsEnabled,
+        pauseUntil: state.pauseUntil || null
+      });
+      saveState();
+      render();
+    });
+
+    document.querySelector("[data-toggle-sync]").addEventListener("click", async () => {
+      state.syncEnabled = !state.syncEnabled;
+      await syncAccountSettings({
+        syncEnabled: state.syncEnabled
+      });
+      saveState();
+      render();
+    });
+
+    document.querySelector("[data-pause-tomorrow]").addEventListener("click", async () => {
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      state.pauseUntil = tomorrow.toISOString();
+      state.adsEnabled = true;
+      await syncAccountSettings({
+        disabled: false,
+        pauseUntil: state.pauseUntil
+      });
+      saveState();
+      render();
+    });
+
+    document.querySelector("[data-save-target]").addEventListener("click", async () => {
+      const input = document.querySelector("[data-target-input]");
+      state.target = input.value.trim() || "vitejs/vite";
+      await syncAccountSettings({
+        activeRouteType: "target",
+        activeRouteId: state.target,
+        sponsorTargetId: state.target
+      });
+      saveState();
+      render();
+    });
+
+    document.querySelector("[data-create-room]").addEventListener("click", () => {
+      state.room = state.room === "frontend-builders" ? "security-sprint" : "frontend-builders";
+      saveState();
+      render();
+    });
+
+    function setSection(name) {
+      document.querySelectorAll("[data-section]").forEach((section) => {
+        section.classList.toggle("active", section.dataset.section === name);
+      });
+      document.querySelectorAll("[data-section-target]").forEach((button) => {
+        button.setAttribute("aria-current", button.dataset.sectionTarget === name ? "true" : "false");
+      });
+      document.querySelector("[data-view-title]").textContent = titles[name][0];
+      document.querySelector("[data-view-subtitle]").textContent = titles[name][1];
+    }
+
+    function render() {
+      const selectedTarget = targets.find((target) => target.id === state.target) || targets[0];
+      const selectedRoom = rooms.find((room) => room.id === state.room);
+      const adState = document.querySelector("[data-ad-state]");
+      const loginLabel = document.querySelector("[data-login-label]");
+      const loginHeadline = document.querySelector("[data-login-headline]");
+      const loginCopy = document.querySelector("[data-login-copy]");
+      const loginButton = document.querySelector("[data-login-toggle-secondary]");
+      const adsToggle = document.querySelector("[data-toggle-ads]");
+      const syncToggle = document.querySelector("[data-toggle-sync]");
+
+      if (!state.adsEnabled) {
+        adState.textContent = "Ads disabled";
+        adState.className = "pill warn";
+      } else if (state.pauseUntil) {
+        adState.textContent = "Paused";
+        adState.className = "pill warn";
+      } else {
+        adState.textContent = "Ads enabled";
+        adState.className = "pill good";
+      }
+
+      loginLabel.textContent = state.signedIn ? "Sign out" : "Sign in";
+      loginHeadline.textContent = state.signedIn ? "Signed-in pilot account" : "Anonymous local mode";
+      loginCopy.textContent = state.signedIn
+        ? "Session, dashboard totals, and settings sync are backed by the local Waitly pilot API."
+        : "Waitly works without login. Sign in when account sync and cross-device totals are ready.";
+      loginButton.textContent = state.signedIn ? "Sign out" : "Use signed-in pilot";
+
+      const personalMinor = apiDashboard
+        ? apiDashboard.totals.lifetimeEstimatedMinor + apiDashboard.totals.confirmedMinor + apiDashboard.totals.settledMinor
+        : null;
+      const communityMinor = publicTotal ? publicTotal.headline.amountMinor : null;
+
+      document.querySelector("[data-personal-total]").textContent = state.signedIn ? formatMoney(personalMinor || 0) : "$18.42";
+      document.querySelector("[data-community-total]").textContent = publicTotal ? formatMoney(communityMinor || 0) : "$12,840";
+      document.querySelector("[data-active-target-short]").textContent = selectedTarget.label;
+      document.querySelector("[data-active-room-label]").textContent = selectedRoom ? selectedRoom.label : "direct target";
+      document.querySelector("[data-target-input]").value = state.target;
+      document.querySelector("[data-install-state]").textContent = state.signedIn ? "Install linked to account" : "Local install only";
+
+      adsToggle.setAttribute("aria-pressed", state.adsEnabled ? "true" : "false");
+      syncToggle.setAttribute("aria-pressed", state.syncEnabled ? "true" : "false");
+
+      renderTargets();
+      renderRooms();
+      renderActivity();
+      renderConfigPreview();
+    }
+
+    function renderTargets() {
+      const list = document.querySelector("[data-target-list]");
+      list.innerHTML = targets.map((target) => `
+        <button class="target-option ${target.id === state.target ? "active" : ""}" type="button" data-target-id="${target.id}">
+          <span class="option-line">
+            <strong>${target.label}</strong>
+            <span>${target.type}</span>
+          </span>
+          <span class="option-line">
+            <span>${target.id}</span>
+            <strong>${target.amount}</strong>
+          </span>
+          <span class="progress" aria-hidden="true"><i style="width: ${target.progress}%"></i></span>
+        </button>
+      `).join("");
+
+      list.querySelectorAll("[data-target-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.target = button.dataset.targetId;
+          saveState();
+          render();
+        });
+      });
+    }
+
+    function renderRooms() {
+      const list = document.querySelector("[data-room-list]");
+      list.innerHTML = rooms.map((room) => `
+        <button class="room-option ${room.id === state.room ? "active" : ""}" type="button" data-room-id="${room.id}">
+          <span class="option-line">
+            <strong>${room.label}</strong>
+            <span>${room.members} members</span>
+          </span>
+          <span class="option-line">
+            <span>${room.target}</span>
+            <strong>${room.amount}</strong>
+          </span>
+          <span class="progress" aria-hidden="true"><i style="width: ${room.progress}%"></i></span>
+        </button>
+      `).join("");
+
+      list.querySelectorAll("[data-room-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.room = button.dataset.roomId;
+          const room = rooms.find((item) => item.id === state.room);
+          if (room) {
+            state.target = room.target;
+          }
+          saveState();
+          render();
+        });
+      });
+    }
+
+    function renderActivity() {
+      const list = document.querySelector("[data-activity-list]");
+      list.innerHTML = activities.map(([type, title, value]) => `
+        <div class="row-item">
+          <span class="badge">${type.slice(0, 2).toUpperCase()}</span>
+          <span class="row-title">
+            <strong>${type}</strong>
+            <span>${title}</span>
+          </span>
+          <span class="amount">${value}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderConfigPreview() {
+      const config = {
+        sponsorTarget: state.target,
+        disabled: !state.adsEnabled,
+        pauseUntil: state.pauseUntil || undefined,
+        syncEnabled: state.syncEnabled,
+        accountSettingsVersion: state.accountSettingsVersion || undefined
+      };
+      document.querySelector("[data-config-preview]").textContent = JSON.stringify(config, null, 2);
+    }
+
+    async function refreshAccountState() {
+      const totals = await callApi("/v1/public/contribution-total");
+      if (totals.ok) {
+        publicTotal = totals.body;
+      }
+
+      const session = await callApi("/v1/session");
+      state.signedIn = Boolean(session.ok && session.body.signedIn);
+
+      if (!state.signedIn) {
+        return;
+      }
+
+      const settings = await callApi("/v1/me/settings");
+      if (settings.ok) {
+        applyAccountSettings(settings.body);
+      }
+
+      const dashboard = await callApi("/v1/me/dashboard");
+      if (dashboard.ok) {
+        apiDashboard = dashboard.body;
+      }
+    }
+
+    async function syncAccountSettings(patch) {
+      if (!state.signedIn) {
+        return;
+      }
+      const response = await callApi("/v1/me/settings", {
+        method: "PATCH",
+        body: {
+          version: state.accountSettingsVersion,
+          ...patch
+        }
+      });
+      if (response.ok) {
+        applyAccountSettings(response.body);
+        await refreshAccountState();
+      } else if (response.status === 409) {
+        await refreshAccountState();
+      }
+    }
+
+    function applyAccountSettings(settings) {
+      state.accountSettingsVersion = settings.version;
+      state.target = settings.sponsorTargetId || settings.activeRouteId || state.target;
+      state.adsEnabled = !settings.disabled;
+      state.pauseUntil = settings.pauseUntil || "";
+      state.syncEnabled = Boolean(settings.syncEnabled);
+    }
+
+    async function callApi(path, options = {}) {
+      try {
+        const response = await fetch(path, {
+          method: options.method || "GET",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined
+        });
+        const body = await response.json();
+        return { ok: response.ok, status: response.status, body };
+      } catch (_) {
+        return { ok: false, status: 0, body: null };
+      }
+    }
+
+    function formatMoney(amountMinor) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format((amountMinor || 0) / 100);
+    }
+
+    function loadState() {
+      try {
+        return {
+          signedIn: false,
+          adsEnabled: true,
+          syncEnabled: false,
+          target: "vitejs/vite",
+          room: "",
+          pauseUntil: "",
+          accountSettingsVersion: undefined,
+          ...JSON.parse(localStorage.getItem("waitly-console-state") || "{}")
+        };
+      } catch (_) {
+        return {
+          signedIn: false,
+          adsEnabled: true,
+          syncEnabled: false,
+          target: "vitejs/vite",
+          room: "",
+          pauseUntil: "",
+          accountSettingsVersion: undefined
+        };
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem("waitly-console-state", JSON.stringify(state));
+    }
+
+    refreshAccountState().finally(() => {
+      render();
+    });
+  </script>
+</body>
+</html>
