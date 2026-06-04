@@ -26,7 +26,7 @@
     "test": "npm run waitly:test",
     "waitly:demo": "WAITLY_OPEN_AD=0 WAITLY_IDLE_MS=1000 WAITLY_MAX_ADS=1 node ./bin/waitly.js run node -e \"setTimeout(() => {}, 1700)\"",
     "waitly:preview": "node ./bin/waitly.js preview-ad",
-    "waitly:test": "node ./test/wait-detector.test.js && node ./test/settings-pause.test.js && node ./test/cli-controls.test.js && node ./test/ad-window-server.test.js && node ./test/visual-popup-invariants.test.js && node ./test/product-auth-wiring.test.js && node ./test/pilot-api.test.js && node ./test/operational-creatives.test.js",
+    "waitly:test": "node ./test/ad-state-machine.test.js && node ./test/codex-json-observer.test.js && node ./test/codex-rpc-events.test.js && node ./test/wait-observer-selection.test.js && node ./test/doctor.test.js && node ./test/codex-shortcut.test.js && node ./test/wait-detector.test.js && node ./test/codex-json-events.test.js && node ./test/settings-pause.test.js && node ./test/observable-command.test.js && node ./test/cli-controls.test.js && node ./test/shim.test.js && node ./test/ad-window-server.test.js && node ./test/visual-popup-invariants.test.js && node ./test/product-auth-wiring.test.js && node ./test/pilot-api.test.js && node ./test/operational-creatives.test.js",
     "waitly:version": "node ./bin/waitly.js version",
     "waitly:web": "node ./scripts/local-web.js 5173",
     "waitly:package-check": "npm pack --dry-run --json"
@@ -36,5 +36,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
   }
 }

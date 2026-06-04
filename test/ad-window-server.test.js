@@ -95,6 +95,67 @@ test("ad-window server records open and shutdown lifecycle with openAds disabled
   }
 });
 
+test("ad-window server can dismiss a wait ad without ending the session", async () => {
+  const sessionId = "qa-dismiss-session";
+  const sponsorTarget = "QA sponsor target";
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "waitly-ad-window-dismiss-test-"));
+  const eventPath = path.join(tempDir, "events.jsonl");
+  let adWindow = null;
+
+  try {
+    adWindow = await startAdWindowServer({
+      sessionId,
+      sponsorTarget,
+      creatives: testCreatives(),
+      eventLog: new EventLog(eventPath),
+      openAds: false,
+      adRotationMs: 1200,
+      adWindow: {
+        width: 300,
+        height: 420,
+        margin: 8,
+        animationMs: 0,
+        x: null,
+        y: null
+      }
+    });
+
+    adWindow.showAd({
+      creativeIndex: 0,
+      waitDurationMs: 1800,
+      reason: "first_wait"
+    });
+
+    adWindow.dismissOpenAds("stdout");
+
+    const activeState = await getJson(`${adWindow.baseUrl}/state`);
+    assert.equal(activeState.active, true);
+    assert.equal(activeState.shutdownReason, null);
+
+    adWindow.showAd({
+      creativeIndex: 1,
+      waitDurationMs: 2000,
+      reason: "second_wait"
+    });
+
+    const records = readRecords(eventPath);
+    assert.deepEqual(records.map((record) => record.type), [
+      "ad_opened",
+      "ad_window_close_requested",
+      "ad_opened"
+    ]);
+    assert.equal(records[1].sessionId, sessionId);
+    assert.equal(records[1].reason, "stdout");
+    assert.equal(records[1].openAds, 1);
+    assert.equal(records[2].creativeId, "creative-b");
+  } finally {
+    if (adWindow) {
+      adWindow.closeNow();
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 function testCreatives() {
   return [
     {

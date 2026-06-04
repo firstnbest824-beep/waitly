@@ -125,6 +125,81 @@ test("pause parser accepts ISO strings, epoch milliseconds, and numeric strings"
   assert.equal(parsePauseUntil(null), null);
 });
 
+test("command mode defaults to auto and accepts explicit pipe or pty", () => {
+  withWaitlyEnv({ WAITLY_COMMAND_MODE: undefined }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").commandMode, "auto");
+  });
+
+  withWaitlyEnv({ WAITLY_COMMAND_MODE: "pipe" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").commandMode, "pipe");
+  });
+
+  withWaitlyEnv({ WAITLY_COMMAND_MODE: "pty" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").commandMode, "pty");
+  });
+
+  withWaitlyEnv({ WAITLY_COMMAND_MODE: "invalid" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").commandMode, "auto");
+  });
+});
+
+test("thinking ad delay defaults and accepts zero for immediate display", () => {
+  withWaitlyEnv({ WAITLY_THINKING_AD_DELAY_MS: undefined }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").thinkingAdDelayMs, 0);
+  });
+
+  withWaitlyEnv({ WAITLY_THINKING_AD_DELAY_MS: "0" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").thinkingAdDelayMs, 0);
+  });
+
+  withWaitlyEnv({ WAITLY_THINKING_AD_DELAY_MS: "2500" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").thinkingAdDelayMs, 2500);
+  });
+});
+
+test("ad open delay defaults to two seconds and accepts zero", () => {
+  withWaitlyEnv({ WAITLY_AD_DELAY_MS: undefined }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").adDelayMs, 2000);
+  });
+
+  withWaitlyEnv({ WAITLY_AD_DELAY_MS: "0" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").adDelayMs, 0);
+  });
+});
+
+test("ad frequency defaults allow one ad per detected reasoning window", () => {
+  withWaitlyEnv({
+    WAITLY_AD_COOLDOWN_MS: undefined,
+    WAITLY_MAX_ADS: undefined
+  }, () => {
+    const settings = loadSettings("/tmp/waitly-project");
+    assert.equal(settings.cooldownMs, 0);
+    assert.equal(settings.maxAds, 999);
+  });
+});
+
+test("detection mode defaults to auto and accepts explicit observers", () => {
+  withWaitlyEnv({ WAITLY_DETECTION_MODE: undefined }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").detectionMode, "auto");
+  });
+
+  withWaitlyEnv({ WAITLY_DETECTION_MODE: "json" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").detectionMode, "json");
+  });
+
+  withWaitlyEnv({ WAITLY_DETECTION_MODE: "appserver" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").detectionMode, "appserver");
+  });
+
+  withWaitlyEnv({ WAITLY_DETECTION_MODE: "screen" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").detectionMode, "screen");
+  });
+
+  withWaitlyEnv({ WAITLY_DETECTION_MODE: "invalid" }, () => {
+    assert.equal(loadSettings("/tmp/waitly-project").detectionMode, "auto");
+  });
+});
+
 function withTempConfig(config, fn) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "waitly-settings-pause-test-"));
   const configPath = path.join(tempDir, "config.json");
@@ -151,7 +226,11 @@ function withWaitlyEnv(overrides, fn) {
     "WAITLY_CONFIG",
     "WAITLY_EVENT_LOG",
     "WAITLY_PAUSE_UNTIL",
-    "WAITLY_DISABLED"
+    "WAITLY_DISABLED",
+    "WAITLY_COMMAND_MODE",
+    "WAITLY_THINKING_AD_DELAY_MS",
+    "WAITLY_AD_DELAY_MS",
+    "WAITLY_DETECTION_MODE"
   ]);
 
   for (const key of Object.keys(overrides)) {

@@ -4,9 +4,14 @@ const childProcess = require("node:child_process");
 const crypto = require("node:crypto");
 const path = require("node:path");
 
+const { AdStateMachine } = require("../lib/ad-state-machine");
 const { startAdWindowServer } = require("../lib/ad-window-server");
+const { startCodexAppServerObserver } = require("../lib/codex-appserver-observer");
+const { CodexJsonObserver } = require("../lib/codex-json-observer");
 const { loadCreatives } = require("../lib/creatives");
+const { formatCodexDoctor, inspectCodexDoctor, runCodexDoctor } = require("../lib/doctor");
 const { EventLog } = require("../lib/event-log");
+const { runObservableCommand } = require("../lib/observable-command");
 const {
   loadSettings,
   parsePauseUntil,
@@ -14,7 +19,8 @@ const {
   resolveAdAvailability,
   writeConfig
 } = require("../lib/settings");
-const { WaitDetector } = require("../lib/wait-detector");
+const { installCommandShim } = require("../lib/shims");
+const { createWaitObservation, selectObserverKind } = require("../lib/wait-observer");
 const packageInfo = require("../package.json");
 
 const projectRoot = path.resolve(__dirname, "..");
@@ -42,6 +48,11 @@ async function main() {
     return;
   }
 
+  if (command === "codex") {
+    await runCodexShortcut(args);
+    return;
+  }
+
   if (command === "preview-ad") {
     await previewAd();
     return;
@@ -49,6 +60,11 @@ async function main() {
 
   if (command === "status") {
     showStatus();
+    return;
+  }
+
+  if (command === "doctor") {
+    await doctor(args);
     return;
   }
 
@@ -64,6 +80,11 @@ async function main() {
 
   if (command === "enable") {
     enableAds();
+    return;
+  }
+
+  if (command === "install-shim") {
+    installShim(args);
     return;
   }
 
@@ -121,88 +142,84 @@ async function runWrappedCommand(args) {
     ...commandMeta
   });
 
-  const waitDetector = new WaitDetector({
-    idleMs: settings.idleMs,
-    inputPromptGraceMs: settings.inputPromptGraceMs,
-    now: Date.now()
-  });
-  let adShownForCurrentWait = false;
+  let activeChild = null;
+  let activeCleanup = () => {};
   let lastAdAt = 0;
   let adCount = 0;
   let childFinished = false;
 
-  const child = childProcess.spawn(wrappedCommand, wrappedArgs, {
-    stdio: ["inherit", "pipe", "pipe"],
-    env: process.env,
-    shell: process.platform === "win32"
+  const logEvent = (type, payload = {}) => {
+    eventLog.write(type, {
+      sessionId,
+      reason: payload.reason || type,
+      ...payload
+    });
+  };
+
+  const adState = new AdStateMachine({
+    delayMs: settings.adDelayMs,
+    openAd: (reason) => {
+      const now = Date.now();
+      const canOpen =
+        !childFinished &&
+        adCount < settings.maxAds &&
+        now - lastAdAt >= settings.cooldownMs;
+
+      if (!canOpen) {
+        logEvent("ad_open_skipped", {
+          reason,
+          adCount,
+          maxAds: settings.maxAds,
+          cooldownMs: settings.cooldownMs
+        });
+        return false;
+      }
+
+      const ad = adWindow.showAd({
+        creativeIndex: adCount,
+        waitDurationMs: settings.adDelayMs,
+        reason
+      });
+
+      adCount += 1;
+      lastAdAt = now;
+
+      if (!settings.openAds) {
+        console.error(`[waitly] Sponsored window URL: ${ad.url}`);
+      }
+
+      return ad;
+    },
+    closeAd: (reason) => {
+      dismissAdWindow(reason);
+    },
+    logger: logEvent
   });
 
-  const closeAdWindow = () => {
+  const closeAdWindow = (reason = "wrapped_process_finished") => {
     try {
-      adWindow.endSession("wrapped_process_finished");
+      adWindow.endSession(reason);
     } catch (_) {
       // Server may already be closed.
     }
   };
 
-  const markActivity = (source, chunk) => {
-    const now = Date.now();
-    handleDetectorEvents(waitDetector.observeOutput({ source, chunk, now }));
+  const dismissAdWindow = (reason) => {
+    try {
+      adWindow.dismissOpenAds(reason);
+    } catch (_) {
+      // The ad window may already be closed by the browser or session cleanup.
+    }
   };
 
-  child.stdout.on("data", (chunk) => {
-    process.stdout.write(chunk);
-    markActivity("stdout", chunk);
-  });
-
-  child.stderr.on("data", (chunk) => {
-    process.stderr.write(chunk);
-    markActivity("stderr", chunk);
-  });
-
-  const detector = setInterval(() => {
+  const finish = ({ code, signal, failure }) => {
     if (childFinished) {
       return;
     }
 
-    const now = Date.now();
-
-    handleDetectorEvents(waitDetector.check({ now }));
-
-    const canShowAd =
-      waitDetector.isWaiting() &&
-      !adShownForCurrentWait &&
-      adCount < settings.maxAds &&
-      now - lastAdAt >= settings.cooldownMs;
-
-    if (!canShowAd) {
-      return;
-    }
-
-    const waitDurationMs = now - waitDetector.getWaitStartedAt();
-    const ad = adWindow.showAd({
-      creativeIndex: adCount,
-      waitDurationMs,
-      reason: "idle_output_silence"
-    });
-
-    adCount += 1;
-    adShownForCurrentWait = true;
-    lastAdAt = now;
-
-    if (!settings.openAds) {
-      console.error(`[waitly] Sponsored window URL: ${ad.url}`);
-    }
-  }, 500);
-
-  const finish = ({ code, signal, failure }) => {
     childFinished = true;
-    clearInterval(detector);
-
-    handleDetectorEvents(waitDetector.finish({
-      source: failure ? "process_error" : "process_exit",
-      now: Date.now()
-    }));
+    activeCleanup();
+    adState.forceClose(failure ? "process_error" : "process_exit");
 
     eventLog.write(failure ? "session_failed" : "session_finished", {
       sessionId,
@@ -212,36 +229,233 @@ async function runWrappedCommand(args) {
       ...commandMeta
     });
 
-    closeAdWindow();
+    closeAdWindow(failure ? "wrapped_process_failed" : "wrapped_process_finished");
+    setTimeout(() => {
+      process.exit(process.exitCode || 0);
+    }, 1800);
   };
 
-  child.on("error", (error) => {
-    finish({ code: 127, signal: null, failure: true });
-    console.error(`[waitly] Failed to start wrapped command: ${error.message}`);
-    process.exitCode = 127;
-  });
-
-  child.on("exit", (code, signal) => {
-    finish({ code, signal, failure: false });
-    process.exitCode = code === null ? 1 : code;
-  });
-
   process.once("SIGINT", () => {
-    child.kill("SIGINT");
+    if (activeChild && typeof activeChild.kill === "function") {
+      activeChild.kill("SIGINT");
+    }
   });
 
   process.once("SIGTERM", () => {
-    child.kill("SIGTERM");
+    if (activeChild && typeof activeChild.kill === "function") {
+      activeChild.kill("SIGTERM");
+    }
   });
 
-  function handleDetectorEvents(events) {
+  await startSelectedObserver();
+
+  async function startSelectedObserver() {
+    const observerKind = selectObserverKind({
+      command: wrappedCommand,
+      args: wrappedArgs,
+      settings
+    });
+
+    if (observerKind === "appserver") {
+      await startAppServerObserver();
+      return;
+    }
+
+    if (observerKind === "json") {
+      startJsonObserver();
+      return;
+    }
+
+    startScreenObserver();
+  }
+
+  async function startAppServerObserver() {
+    logEvent("observer_selected", {
+      reason: "appserver",
+      observer: "appserver",
+      detectionMode: settings.detectionMode
+    });
+
+    const result = await startCodexAppServerObserver({
+      command: wrappedCommand,
+      args: wrappedArgs,
+      settings,
+      cwd: process.cwd(),
+      env: process.env,
+      streams: {
+        stdin: process.stdin,
+        stdout: process.stdout,
+        stderr: process.stderr
+      },
+      adState,
+      logger: logEvent
+    });
+
+    if (result.fallbackReason) {
+      logEvent("observer_fallback", {
+        reason: result.fallbackReason,
+        from: "appserver",
+        to: "screen"
+      });
+      startScreenObserver(result.fallbackReason);
+      return;
+    }
+
+    attachChild(result.runner, {
+      onFallback: (fallback) => {
+        if (childFinished) {
+          return;
+        }
+
+        activeCleanup();
+        adState.forceClose(fallback.reason || "observer_fallback");
+        logEvent("observer_fallback", {
+          reason: fallback.reason || "observer_fallback",
+          from: "appserver",
+          to: "screen"
+        });
+        startScreenObserver(fallback.reason || "observer_fallback");
+      }
+    });
+  }
+
+  function startJsonObserver() {
+    logEvent("observer_selected", {
+      reason: "json",
+      observer: "json",
+      detectionMode: settings.detectionMode
+    });
+
+    const observer = new CodexJsonObserver({
+      adState,
+      logger: logEvent
+    });
+    const child = runObservableCommand(wrappedCommand, wrappedArgs, {
+      mode: "pipe",
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        WAITLY_INNER: "1"
+      },
+      stdin: process.stdin,
+      stdout: process.stdout,
+      stderr: process.stderr
+    });
+
+    child.on("data", (source, chunk) => {
+      observer.observeOutput({ source, chunk });
+    });
+
+    attachChild(child);
+  }
+
+  function startScreenObserver(fallbackReason = null) {
+    logEvent("observer_selected", {
+      reason: "screen",
+      observer: "screen",
+      detectionMode: settings.detectionMode,
+      fallbackReason
+    });
+
+    const waitObservation = createWaitObservation({
+      command: wrappedCommand,
+      args: wrappedArgs,
+      settings: {
+        ...settings,
+        detectionMode: "screen"
+      },
+      streams: {
+        stdin: process.stdin,
+        stdout: process.stdout
+      },
+      now: Date.now()
+    });
+    const waitDetector = waitObservation.detector;
+    const child = runObservableCommand(wrappedCommand, wrappedArgs, {
+      mode: waitObservation.commandMode,
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        WAITLY_INNER: "1"
+      },
+      stdin: process.stdin,
+      stdout: process.stdout,
+      stderr: process.stderr
+    });
+
+    child.on("data", (source, chunk) => {
+      handleScreenEvents(waitDetector.observeOutput({
+        source,
+        chunk,
+        now: Date.now()
+      }));
+    });
+
+    const detector = setInterval(() => {
+      if (childFinished) {
+        return;
+      }
+      handleScreenEvents(waitDetector.check({ now: Date.now() }));
+    }, 500);
+
+    attachChild(child, {
+      cleanup: () => {
+        clearInterval(detector);
+        handleScreenEvents(waitDetector.finish({
+          source: "process_exit",
+          now: Date.now()
+        }));
+      }
+    });
+  }
+
+  function attachChild(child, { cleanup = () => {}, onFallback = null } = {}) {
+    activeChild = child;
+    activeCleanup = cleanup;
+
+    if (typeof child.on === "function" && onFallback) {
+      child.on("fallback", onFallback);
+    }
+
+    child.on("error", (error) => {
+      finish({ code: 127, signal: null, failure: true });
+      console.error(`[waitly] Failed to start wrapped command: ${error.message}`);
+      process.exitCode = 127;
+    });
+
+    child.on("exit", (code, signal) => {
+      process.exitCode = code === null ? 1 : code;
+      finish({ code, signal, failure: false });
+    });
+  }
+
+  function handleScreenEvents(events) {
     for (const event of events) {
       if (event.type === "wait_detected") {
-        adShownForCurrentWait = false;
+        if (event.reason === "ai_thinking_status") {
+          logEvent("screen_status_detected", {
+            reason: event.reason
+          });
+        }
+
+        if (event.reason === "idle_output_silence") {
+          logEvent("screen_idle_detected", {
+            reason: event.reason
+          });
+        }
+
+        adState.scheduleOpen(event.reason || "screen_wait_detected");
       }
 
       if (event.type === "wait_ended") {
-        adShownForCurrentWait = false;
+        adState.close(event.source || "screen_wait_ended");
+      }
+
+      if (event.type === "wait_suppressed" && event.reason === "interactive_prompt") {
+        logEvent("screen_prompt_detected", {
+          reason: event.reason,
+          source: event.source
+        });
       }
 
       const { type, ...payload } = event;
@@ -250,6 +464,45 @@ async function runWrappedCommand(args) {
         ...payload
       });
     }
+  }
+}
+
+async function runCodexShortcut(codexArgs) {
+  applyCodexShortcutDefaults();
+
+  const settings = loadSettings(projectRoot);
+  const report = inspectCodexDoctor({
+    commandName: "codex",
+    settings,
+    waitlyBinPath: __filename
+  });
+
+  if (!report.realCodexPath || !report.realCodexExists || !report.realCodexIsAbsolute) {
+    console.error("Cannot find real Codex path.");
+    console.error("Run: waitly doctor codex");
+    process.exit(1);
+  }
+
+  if (normalizePath(report.realCodexPath) === normalizePath(report.shimPath)) {
+    console.error("Cannot use Waitly shim as the real Codex path.");
+    console.error("Run: waitly doctor codex");
+    process.exit(1);
+  }
+
+  if (isDebugEnabled()) {
+    console.error(`[waitly] Launching Codex through Waitly: ${report.realCodexPath}`);
+  }
+
+  await runWrappedCommand([report.realCodexPath, ...codexArgs]);
+}
+
+function applyCodexShortcutDefaults() {
+  if (!process.env.WAITLY_DETECTION_MODE) {
+    process.env.WAITLY_DETECTION_MODE = "auto";
+  }
+
+  if (!process.env.WAITLY_AD_DELAY_MS) {
+    process.env.WAITLY_AD_DELAY_MS = "2000";
   }
 }
 
@@ -332,6 +585,23 @@ function showStatus() {
   console.log(`Sponsor target: ${sponsorTarget}`);
 }
 
+async function doctor(args) {
+  const target = args[0] || "codex";
+  if (target !== "codex") {
+    console.error(`[waitly] Unsupported doctor target: ${target}`);
+    process.exit(1);
+  }
+
+  const settings = loadSettings(projectRoot);
+  const report = await runCodexDoctor({
+    commandName: target,
+    settings,
+    waitlyBinPath: __filename
+  });
+
+  console.log(formatCodexDoctor(report));
+}
+
 function pauseAds(args) {
   const settings = loadSettings(projectRoot);
   const config = readConfig(settings);
@@ -371,6 +641,59 @@ function enableAds() {
   writeConfig(settings, config);
   console.log("Waitly ads enabled");
   console.log(`Config: ${settings.configPath}`);
+}
+
+function installShim(args) {
+  let parsed;
+  try {
+    parsed = parseInstallShimArgs(args);
+  } catch (error) {
+    console.error(`[waitly] ${error.message}`);
+    process.exit(1);
+  }
+
+  const settings = loadSettings(projectRoot);
+
+  try {
+    const shim = installCommandShim({
+      commandName: parsed.commandName,
+      targetCommand: parsed.targetCommand,
+      settings,
+      waitlyBinPath: __filename
+    });
+
+    console.log(`Waitly shim installed for ${shim.commandName}`);
+    console.log(`Shim: ${shim.shimPath}`);
+    console.log(`Target: ${shim.targetCommand}`);
+    console.log(`Add this directory to the front of PATH: ${shim.shimDir}`);
+  } catch (error) {
+    console.error(`[waitly] ${error.message}`);
+    process.exit(1);
+  }
+}
+
+function parseInstallShimArgs(args) {
+  const commandName = args[0];
+  if (!commandName) {
+    throw new Error("Missing shim command. Example: waitly install-shim codex");
+  }
+
+  let targetCommand = null;
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--target") {
+      targetCommand = args[index + 1];
+      index += 1;
+      if (!targetCommand) {
+        throw new Error("Missing --target value");
+      }
+      continue;
+    }
+
+    throw new Error(`Unknown install-shim option: ${arg}`);
+  }
+
+  return { commandName, targetCommand };
 }
 
 function resolvePauseArgument(args) {
@@ -435,6 +758,15 @@ function formatAvailability(adAvailability) {
   return "disabled";
 }
 
+function normalizePath(filePath) {
+  return path.resolve(filePath).toLowerCase();
+}
+
+function isDebugEnabled() {
+  return process.env.WAITLY_DEBUG === "1" ||
+    String(process.env.WAITLY_LOG_LEVEL || "").toLowerCase() === "debug";
+}
+
 function summarizeCommand(command, args) {
   return {
     wrappedCommand: path.basename(command),
@@ -451,12 +783,15 @@ function printHelp() {
 
 Usage:
   waitly version                 Show the installed Waitly version
+  waitly codex [...args]         Launch Codex through Waitly using the installed shim target
   waitly run <command> [args...]  Wrap an AI CLI and show a sponsored window during wait time
   waitly preview-ad              Open a sponsored window without running a CLI
   waitly status                  Show current ad control state
+  waitly doctor codex            Diagnose Codex shim and observer selection
   waitly pause [1h|until <time>] Pause sponsored windows outside the ad popup
   waitly disable                 Disable sponsored windows
   waitly enable                  Enable sponsored windows and clear pauses
+  waitly install-shim codex      Create a PATH shim that routes codex through Waitly
 
 Environment:
   WAITLY_DISABLED=1              Disable ad display and run the command directly
@@ -464,8 +799,12 @@ Environment:
   WAITLY_IDLE_MS=15000           Silence threshold before wait detection
   WAITLY_INPUT_PROMPT_GRACE_MS=90000
                                   Suppress ads after CLI input/confirmation prompts
-  WAITLY_AD_COOLDOWN_MS=120000   Minimum time between ads
-  WAITLY_MAX_ADS=3               Max ads per wrapped session
+  WAITLY_THINKING_AD_DELAY_MS=0
+                                  Thinking/reasoning status duration before ad display
+  WAITLY_DETECTION_MODE=auto     Detection source: auto, appserver, json, or screen
+  WAITLY_AD_DELAY_MS=2000        Delay before opening a scheduled sponsored window
+  WAITLY_AD_COOLDOWN_MS=0        Minimum time between ads
+  WAITLY_MAX_ADS=999             Max ads per wrapped session
   WAITLY_AD_ROTATION_MS=8000     Rotate creative inside the popup
   WAITLY_AD_WINDOW_WIDTH=320     Sponsored window width
   WAITLY_AD_WINDOW_HEIGHT=430    Sponsored window height

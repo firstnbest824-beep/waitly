@@ -65,6 +65,58 @@ test("meaningful output ends an active wait", () => {
   assert.equal(detector.isWaiting(), false);
 });
 
+test("thinking status starts a wait after the thinking ad delay", () => {
+  const detector = new WaitDetector({
+    idleMs: 600000,
+    inputPromptGraceMs: 90000,
+    thinkingAdDelayMs: 1000,
+    now: 0
+  });
+
+  assert.deepEqual(detector.observeOutput({
+    source: "stdout",
+    chunk: "\rReasoning...",
+    now: 200
+  }), []);
+
+  assert.deepEqual(detector.check({ now: 1199 }), []);
+
+  const events = detector.check({ now: 1200 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_detected");
+  assert.equal(events[0].reason, "ai_thinking_status");
+  assert.equal(events[0].statusForMs, 1000);
+  assert.equal(detector.isWaiting(), true);
+});
+
+test("meaningful output ends a thinking-triggered wait", () => {
+  const detector = new WaitDetector({
+    idleMs: 600000,
+    inputPromptGraceMs: 90000,
+    thinkingAdDelayMs: 1000,
+    now: 0
+  });
+
+  detector.observeOutput({
+    source: "stdout",
+    chunk: "\rReasoning...",
+    now: 200
+  });
+  detector.check({ now: 1200 });
+
+  const events = detector.observeOutput({
+    source: "stdout",
+    chunk: "Here is the answer.\n",
+    now: 1600
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_ended");
+  assert.equal(events[0].source, "stdout");
+  assert.equal(events[0].durationMs, 1400);
+  assert.equal(detector.isWaiting(), false);
+});
+
 test("interactive prompts suppress wait detection", () => {
   const detector = new WaitDetector({ idleMs: 1000, inputPromptGraceMs: 90000, now: 0 });
   const events = detector.observeOutput({
@@ -76,6 +128,104 @@ test("interactive prompts suppress wait detection", () => {
   assert.equal(events.length, 1);
   assert.equal(events[0].type, "wait_suppressed");
   assert.deepEqual(detector.check({ now: 5000 }), []);
+});
+
+test("AI status output after a prompt resumes wait detection", () => {
+  const detector = new WaitDetector({ idleMs: 1000, inputPromptGraceMs: 90000, now: 0 });
+
+  detector.observeOutput({
+    source: "stdout",
+    chunk: "Press enter to confirm or esc to cancel",
+    now: 200
+  });
+
+  assert.deepEqual(detector.observeOutput({
+    source: "stdout",
+    chunk: "\rThinking... Esc to cancel",
+    now: 300
+  }), []);
+
+  assert.deepEqual(detector.check({ now: 1299 }), []);
+
+  const events = detector.check({ now: 1300 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_detected");
+  assert.equal(events[0].silentForMs, 1000);
+});
+
+test("AI status redraw with a prompt marker resumes wait detection", () => {
+  const detector = new WaitDetector({ idleMs: 1000, inputPromptGraceMs: 90000, now: 0 });
+
+  detector.observeOutput({
+    source: "stdout",
+    chunk: "Press enter to confirm or esc to cancel",
+    now: 200
+  });
+
+  assert.equal(classifyOutput("\rThinking... Esc to cancel\n> ").kind, "thinking_status");
+  assert.deepEqual(detector.observeOutput({
+    source: "stdout",
+    chunk: "\rThinking... Esc to cancel\n> ",
+    now: 300
+  }), []);
+
+  assert.deepEqual(detector.check({ now: 1299 }), []);
+
+  const events = detector.check({ now: 1300 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_detected");
+  assert.equal(events[0].silentForMs, 1000);
+});
+
+test("AI status redraw with Codex prompt glyph resumes wait detection", () => {
+  const detector = new WaitDetector({ idleMs: 1000, inputPromptGraceMs: 90000, now: 0 });
+
+  detector.observeOutput({
+    source: "stdout",
+    chunk: "Press enter to confirm or esc to cancel",
+    now: 200
+  });
+
+  assert.equal(classifyOutput("\rThinking for 3s Esc to cancel\n› ").kind, "thinking_status");
+  assert.deepEqual(detector.observeOutput({
+    source: "stdout",
+    chunk: "\rThinking for 3s Esc to cancel\n› ",
+    now: 300
+  }), []);
+
+  const events = detector.check({ now: 1300 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_detected");
+  assert.equal(events[0].silentForMs, 1000);
+});
+
+test("bare Codex prompt redraw after a prompt resumes wait detection", () => {
+  const detector = new WaitDetector({ idleMs: 1000, inputPromptGraceMs: 90000, now: 0 });
+
+  detector.observeOutput({
+    source: "stdout",
+    chunk: "Press enter to confirm or esc to cancel",
+    now: 200
+  });
+
+  assert.equal(classifyOutput("\r> ").kind, "low_signal");
+  assert.deepEqual(detector.observeOutput({
+    source: "stdout",
+    chunk: "\r> ",
+    now: 300
+  }), []);
+
+  assert.deepEqual(detector.check({ now: 1299 }), []);
+
+  const events = detector.check({ now: 1300 });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_detected");
+  assert.equal(events[0].silentForMs, 1000);
+});
+
+test("bare Codex prompt glyph redraws are low-signal", () => {
+  assert.equal(classifyOutput("\r› ").kind, "low_signal");
+  assert.equal(classifyOutput("\r| > ").kind, "low_signal");
 });
 
 test("interactive prompts end an active wait before suppressing detection", () => {
@@ -97,14 +247,52 @@ test("interactive prompts end an active wait before suppressing detection", () =
   assert.deepEqual(detector.check({ now: 5000 }), []);
 });
 
-test("classifies common AI CLI status output as low signal", () => {
-  assert.equal(classifyOutput("\r⠋ Analyzing project files").kind, "low_signal");
+test("classifies AI thinking and command progress status output", () => {
+  assert.equal(classifyOutput("\r⠋ Analyzing project files").kind, "thinking_status");
   assert.equal(classifyOutput("\rRunning tests 42%").kind, "low_signal");
   assert.equal(classifyOutput("Error: test failed\n").kind, "meaningful");
 });
 
 test("classifies prompts with y/n suffix as interactive", () => {
   assert.equal(classifyOutput("Continue? [y/n]").kind, "interactive_prompt");
+});
+
+test("classifies thinking status output as thinking status", () => {
+  assert.equal(classifyOutput("\rReasoning...").kind, "thinking_status");
+  assert.equal(classifyOutput("\rThinking... Esc to cancel").kind, "thinking_status");
+  assert.equal(classifyOutput("\rThinking for 3s Esc to cancel\n> ").kind, "thinking_status");
+  assert.equal(classifyOutput("\rReasoning for 12s Esc to cancel\n> ").kind, "thinking_status");
+  assert.equal(classifyOutput("\r\ucd94\ub860 \uc911...").kind, "thinking_status");
+});
+
+test("classifies Codex full-screen reasoning redraw as thinking status", () => {
+  const chunk = "\r+ status\nReasoning for 8s Esc to cancel\n| user asked something?\n\u203a ";
+  assert.equal(classifyOutput(chunk).kind, "thinking_status");
+});
+
+test("Codex full-screen reasoning redraw starts wait despite trailing prompt glyph", () => {
+  const detector = new WaitDetector({
+    idleMs: 600000,
+    inputPromptGraceMs: 15000,
+    thinkingAdDelayMs: 0,
+    now: 0
+  });
+
+  const events = detector.observeOutput({
+    source: "stdout",
+    chunk: "\r+ status\nReasoning for 8s Esc to cancel\n| user asked something?\n\u203a ",
+    now: 200
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "wait_detected");
+  assert.equal(events[0].reason, "ai_thinking_status");
+  assert.equal(detector.isWaiting(), true);
+});
+
+test("does not treat normal unfinished prose punctuation as an interactive prompt", () => {
+  assert.equal(classifyOutput("Could this happen during inference?").kind, "meaningful");
+  assert.equal(classifyOutput("Root cause:").kind, "meaningful");
 });
 
 test("event log writes ordered JSONL records without undefined fields", () => {

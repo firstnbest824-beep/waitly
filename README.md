@@ -51,6 +51,12 @@ From this directory:
 node ./bin/waitly.js run <command> [args...]
 ```
 
+Quick start for Codex after installing the shim once:
+
+```sh
+node ./bin/waitly.js codex
+```
+
 Examples:
 
 ```sh
@@ -61,11 +67,50 @@ node ./bin/waitly.js run node -e "setTimeout(() => {}, 20000)"
 After a global install, use the `waitly` binary directly:
 
 ```sh
+waitly codex
 waitly run codex
 waitly run claude
 ```
 
-Waitly starts the wrapped command with inherited stdin and proxied stdout/stderr. When output has been silent long enough, it opens or prints a sponsored window URL. When the wrapped command exits, Waitly requests the ad window to close and exits with the wrapped command's exit code.
+Waitly starts the wrapped command with inherited stdin and observable stdout/stderr. For interactive Codex, the default `auto` detection mode first tries a Codex app-server WebSocket observer, then falls back to screen detection if app-server or `--remote` startup fails. For `codex exec --json`, Waitly observes the explicit JSONL event stream. Other commands use screen detection. When a turn/reasoning event starts, Waitly schedules a sponsored window after `WAITLY_AD_DELAY_MS`; when visible output starts, the turn completes, or the process exits, it closes any pending or open ad through one ad state machine.
+
+## Route A CLI Through Waitly
+
+Create a command shim when you want `codex` itself to route through Waitly:
+
+```sh
+node ./bin/waitly.js install-shim codex
+```
+
+The shim is written to `~/.waitly/shims` and calls Waitly with the original command path that was found during installation, so it does not recursively call itself. Put `~/.waitly/shims` at the front of `PATH` before launching Codex. In a PowerShell session:
+
+```powershell
+$env:Path = "$HOME\.waitly\shims;$env:Path"
+codex
+```
+
+Diagnose the Codex route without changing it:
+
+```powershell
+Get-Command codex
+node ./bin/waitly.js doctor codex
+```
+
+For a globally installed Waitly package, use:
+
+```sh
+waitly install-shim codex
+```
+
+After the shim exists, `waitly codex [...args]` launches the real Codex path stored in the shim through Waitly without requiring you to prepend the shim directory to `PATH` for that command.
+
+Debug mode:
+
+```powershell
+$env:WAITLY_LOG_LEVEL = "debug"
+$env:WAITLY_AD_DELAY_MS = "500"
+waitly codex
+```
 
 ## Pause Or Disable Ads
 
@@ -164,7 +209,7 @@ Default event log:
 
 Each record is one JSON object per line with a timestamp and event type. The file is created on first write. Set `WAITLY_EVENT_LOG` to write somewhere else, or set `WAITLY_HOME` to move the default config/log directory.
 
-Common event types include `session_started`, `wait_detected`, `wait_ended`, `wait_suppressed`, `ad_opened`, `ad_impression`, `ad_rotation_impression`, `ad_click`, `ad_auto_close`, `ad_unload`, `ad_window_shutdown_requested`, `session_finished`, and `session_failed`.
+Common event types include `session_started`, `observer_selected`, `observer_fallback`, `appserver_started`, `proxy_started`, `codex_tui_started`, `rpc_event_seen`, `ad_open_scheduled`, `ad_opened`, `ad_close_requested`, `ad_closed`, `ad_force_closed`, `wait_detected`, `wait_ended`, `wait_suppressed`, `screen_status_detected`, `screen_prompt_detected`, `screen_idle_detected`, `ad_impression`, `ad_rotation_impression`, `ad_click`, `ad_auto_close`, `ad_unload`, `ad_window_shutdown_requested`, `session_finished`, and `session_failed`.
 
 ## Configuration
 
@@ -179,8 +224,12 @@ Waitly reads environment variables at startup:
 | `WAITLY_EVENT_LOG` | `$WAITLY_HOME/events.jsonl` | Event log file path. |
 | `WAITLY_IDLE_MS` | `15000` | Silent-output threshold before wait detection. |
 | `WAITLY_INPUT_PROMPT_GRACE_MS` | `90000` | Suppression window after an interactive prompt is detected. |
-| `WAITLY_AD_COOLDOWN_MS` | `120000` | Minimum time between ads in one wrapped session. |
-| `WAITLY_MAX_ADS` | `3` | Maximum ads per wrapped session. |
+| `WAITLY_THINKING_AD_DELAY_MS` | `0` | Thinking/reasoning status duration before showing an ad. Default shows immediately. |
+| `WAITLY_AD_DELAY_MS` | `2000` | Delay between an observed turn/reasoning start and opening the sponsored window. |
+| `WAITLY_COMMAND_MODE` | `auto` | Command runner mode: `auto`, `pipe`, or `pty`. Auto uses PTY for known interactive AI CLIs when a terminal is attached. |
+| `WAITLY_DETECTION_MODE` | `auto` | Wait detection source: `auto`, `appserver`, `json`, or `screen`. `codex-json` is accepted as a legacy alias for `json`. |
+| `WAITLY_AD_COOLDOWN_MS` | `0` | Minimum time between ads in one wrapped session. Default allows each detected reasoning window to show. |
+| `WAITLY_MAX_ADS` | `999` | Maximum ads per wrapped session. |
 | `WAITLY_AD_ROTATION_MS` | `8000` | Creative rotation interval inside the ad page. |
 | `WAITLY_AD_WINDOW_WIDTH` | `320` | Requested ad window width. |
 | `WAITLY_AD_WINDOW_HEIGHT` | `430` | Requested ad window height. |
@@ -216,10 +265,25 @@ Optional config file example:
 ## Troubleshooting
 
 - Use `WAITLY_OPEN_AD=0` when running in a headless terminal, CI, SSH, or an environment where opening a browser is not possible.
-- If no ad appears, lower `WAITLY_IDLE_MS` for testing and confirm the wrapped command is quiet long enough to trigger a wait.
+- If no ad appears during AI reasoning, confirm the wrapped command is running through `waitly run` or the Waitly shim and that ads are not paused or disabled.
+- Run `waitly doctor codex` to see whether `codex` resolves to the Waitly shim, which real Codex path the shim stores, whether `WAITLY_DETECTION_MODE=auto` is active, whether app-server detection is eligible, and whether screen fallback will be used.
+- If no ad appears during silent command output, lower `WAITLY_IDLE_MS` for testing and confirm the wrapped command is quiet long enough to trigger a wait.
 - If no ad appears even after enough idle time, check for `WAITLY_DISABLED=1`, a future `WAITLY_PAUSE_UNTIL`, or matching `disabled`/`adsDisabled`/`pauseUntil`/`adsPausedUntil` values in the config file.
 - If ads appear near prompts, increase `WAITLY_INPUT_PROMPT_GRACE_MS`; prompt detection is heuristic.
+- If an interactive CLI says stdin/stdout is not a terminal, run from a real terminal and set `WAITLY_COMMAND_MODE=pty`.
+- If a non-interactive command behaves differently under PTY, set `WAITLY_COMMAND_MODE=pipe`.
 - If browser placement is wrong on Linux, install or expose `wmctrl` and `xrandr`, or set `WAITLY_AD_WINDOW_X` and `WAITLY_AD_WINDOW_Y`.
 - If Windows/WSL opening fails, confirm `powershell.exe` and `msedge.exe` are available from the environment running Node.
 - If event logging fails, check that the directory for `WAITLY_EVENT_LOG` is writable.
-- Run `npm run waitly:test` to execute the wait detector tests.
+- Run `npm run waitly:test` to execute the Waitly test suite.
+
+Manual Codex verification on Windows PowerShell:
+
+```powershell
+$env:Path = "$HOME\.waitly\shims;$env:Path"
+Get-Command codex
+waitly doctor codex
+codex
+```
+
+Expected result: `Get-Command codex` points at `~/.waitly/shims/codex.cmd`, doctor reports the real Codex path from the shim, detection mode is `auto`, interactive Codex tries app-server observer first, reasoning opens an ad after about two seconds, visible answer output closes it, and process exit force-closes any remaining ad.
